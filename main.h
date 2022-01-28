@@ -1,5 +1,5 @@
 //
-// Created by 15991 on 2022/1/27.
+// Created by clf on 2022/1/27.
 //
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,6 +9,8 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <errno.h>
+#include <pwd.h>
+#include <linux/limits.h>
 
 #ifndef TINYSHELL_MAIN_H
 #define TINYSHELL_MAIN_H

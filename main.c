@@ -12,33 +12,6 @@ inline int lsh_builtin_num() {
 }
 
 char* lsh_read_line() {
-    /*
-    int bufsize = LSH_RL_BUFSIZE;
-    char* buffer = malloc(sizeof(char) * bufsize);
-    if (buffer == NULL) {
-        fprintf(stderr, "malloc error\n");
-        exit(EXIT_FAILURE);
-    }
-    char c;
-    int position = 0;
-    while (1) {
-        c = getchar();
-        if (c == EOF || c == '\n') {
-            buffer[position] = '\n';
-            return buffer;
-        }
-        buffer[position++] = c;
-
-        if (position >= LSH_RL_BUFSIZE) {
-            bufsize += LSH_RL_BUFSIZE;
-            buffer = realloc(buffer, bufsize);
-            if (buffer == NULL) {
-                fprintf(stderr, "realloc error\n");
-                exit(EXIT_FAILURE);
-            }
-        }
-    }
-     */
     char *line = NULL;
     ssize_t bufsize =0;
     if (getline(&line, &bufsize, stdin) == -1) {
@@ -108,6 +81,8 @@ struct tokens *lsh_split_line(char *lines) {
     *(tokens + pos) = malloc(sizeof (char) * cur);
     strncpy(*(tokens + pos), token, cur);
 
+    free(token);
+
     struct tokens* res;
     res->tokens = tokens;
     res->size = pos + 1;
@@ -123,6 +98,7 @@ int lsh_execute(char **args) {
 
     for (i = 0; i < lsh_builtin_num(); ++i) {
         if (strcmp(args[0], builtin_str[i]) == 0) {
+            printf("%s\n", args[0]);
             return (*builtin_func[i])(args);
         }
     }
@@ -183,7 +159,20 @@ inline void initPrint() {
         exit(1);
     }
 
-    printf("> $[%s]", path);
+    struct passwd *pwd = getpwuid(getuid());
+
+    if (pwd == NULL) {
+        fprintf(stderr, "getpwuid error: %s", strerror(errno));
+    }
+
+    printf("[%s:%s]> $ ", pwd->pw_name, path);
+}
+
+void GC(struct tokens *args) {
+    for (int i = 0; i < args->size; ++i) {
+        free(args->tokens[i]);
+    }
+    free(args);
 }
 
 void lsh_loop() {
@@ -210,7 +199,7 @@ void lsh_loop() {
         status = lsh_execute(args->tokens);
 
         //free(lines);
-        free(args);
+        GC(args);
     } while(status);
 }
 
