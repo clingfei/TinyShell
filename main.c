@@ -102,7 +102,7 @@ int lsh_execute(char **args) {
             return (*builtin_func[i])(args);
         }
     }
-    printf("%s\n", args[0]);
+
     return lsh_launch(args);
 }
 
@@ -122,9 +122,7 @@ int lsh_cd(char **args) {
         }
         else if (strcmp(args[1], "..") == 0) {
             char *path = get_path();
-            if (strcmp(path, "/") == 0)
-                return 1;
-            else {
+            if (strcmp(path, "/") != 0) {
                 char *ptr = path + strlen(path) - 1;
                 while (ptr != path && *ptr != '/') {
                     ptr--;
@@ -135,6 +133,7 @@ int lsh_cd(char **args) {
                     fprintf(stderr, "%s\n", strerror(errno));
                 }
             }
+            free(path);
         }
         else if (chdir(args[1]) != 0) {
             fprintf(stderr, "%s\n", strerror(errno));
@@ -197,7 +196,15 @@ inline char* get_path() {
 }
 
 inline void initPrint() {
-    printf("[%s:%s]> $ ", get_user(), get_path());
+    char *path = get_path();
+    char *user = get_user();
+    char cmp_path[PATHNAME_MAX] = "/home/";
+    strcat(cmp_path, user);
+    if (strcmp(cmp_path, path) == 0)
+        printf("[%s:~]> $ ", user);
+    else
+        printf("[%s:%s]> $ ", user, path);
+    free(path);
 }
 
 void GC(struct tokens *args) {
