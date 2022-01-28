@@ -75,7 +75,6 @@ struct tokens *lsh_split_line(char *lines) {
                 cur = 0;
             }
             lines++;
-            printf("%s", token);
         }
         else if (*lines == '"') {
             while (*lines != '\n' && *lines != '"') {
@@ -109,11 +108,10 @@ struct tokens *lsh_split_line(char *lines) {
     *(tokens + pos) = malloc(sizeof (char) * cur);
     strncpy(*(tokens + pos), token, cur);
 
-    struct tokens res;
-    res.tokens = tokens;
-    res.size = pos;
-
-    return &res;
+    struct tokens* res;
+    res->tokens = tokens;
+    res->size = pos + 1;
+    return res;
 }
 
 int lsh_execute(char **args) {
@@ -173,14 +171,19 @@ int lsh_launch(char **args) {
     }
     else {
         wpid = waitpid(pid, &status, WUNTRACED);
-        if (WIFSIGNALED(status)) {
-            printf("Child exited via signal %d\n", WTERMSIG(status));
-        }
-        else if (WIFEXITED(status)) {
-            printf("Child exited via signal %d\n", WEXITSTATUS(status));
-        }
     }
     return 1;
+}
+
+inline void initPrint() {
+    char path[PATHNAME_MAX];
+
+    if (NULL == getcwd(path, sizeof(path))) {
+        fprintf(stderr, "getcwd error: %s", strerror(errno));
+        exit(1);
+    }
+
+    printf("> $[%s]", path);
 }
 
 void lsh_loop() {
@@ -189,21 +192,24 @@ void lsh_loop() {
     int status;
 
     do {
-        printf("> $");
+        initPrint();
         lines = lsh_read_line();
         if (lines == NULL) continue;
-        printf("read lines: %s\n", lines);
+        //printf("read lines: %s\n", lines);
 
         args = lsh_split_line(lines);
-        printf("%d", args->size);
+
         if (args->tokens == NULL || args->size == 0) continue;
+
+        /*
         for (int i = 0; i < args->size; ++i) {
             printf("%s\n", args->tokens[i]);
         }
+         */
 
         status = lsh_execute(args->tokens);
 
-        free(lines);
+        //free(lines);
         free(args);
     } while(status);
 }

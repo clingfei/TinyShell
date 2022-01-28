@@ -8,9 +8,16 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <errno.h>
 
 #ifndef TINYSHELL_MAIN_H
 #define TINYSHELL_MAIN_H
+
+#ifdef _POSIX_PATH_MAX
+#define PATHNAME_MAX		POSIX_PATH_MAX
+#else
+#define PATHNAME_MAX		1000
+#endif
 
 char *builtin_str[] = {
         "cd",
@@ -22,6 +29,8 @@ struct tokens {
     char ** tokens;
     int size;
 };
+
+void initPrint();
 
 int lsh_builtin_num();
 
