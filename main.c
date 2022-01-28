@@ -98,11 +98,11 @@ int lsh_execute(char **args) {
 
     for (i = 0; i < lsh_builtin_num(); ++i) {
         if (strcmp(args[0], builtin_str[i]) == 0) {
-            printf("%s\n", args[0]);
+            //printf("args: %s, target: %s\n", args[0], builtin_str[i]);
             return (*builtin_func[i])(args);
         }
     }
-
+    printf("%s\n", args[0]);
     return lsh_launch(args);
 }
 
@@ -111,8 +111,34 @@ int lsh_cd(char **args) {
         fprintf(stderr, "expected argument to \"cd\"\n");
     }
     else {
-        if (chdir(args[1]) != 0) {
-            perror("cd error\n");
+        if (strcmp(args[1], ".") == 0) return 1;
+        else if (strcmp(args[1], "~") == 0) {
+            char *user = get_user();
+            char path[PATHNAME_MAX] = "/home/";
+            strcat(path, user);
+            if (chdir(path) != 0) {
+                fprintf(stderr, "%s\n", strerror(errno));
+            }
+        }
+        else if (strcmp(args[1], "..") == 0) {
+            char *path = get_path();
+            if (strcmp(path, "/") == 0)
+                return 1;
+            else {
+                char *ptr = path + strlen(path) - 1;
+                while (ptr != path && *ptr != '/') {
+                    ptr--;
+                }
+                char *target = malloc(sizeof(char) * (ptr - path + 1));
+                strncpy(target, path, ptr - path + 1);
+                if (chdir(target) != 0) {
+                    fprintf(stderr, "%s\n", strerror(errno));
+                }
+            }
+        }
+        else if (chdir(args[1]) != 0) {
+            fprintf(stderr, "%s\n", strerror(errno));
+            //fprintf(stderr, "cd error\n");
         }
     }
     return 1;
@@ -151,27 +177,34 @@ int lsh_launch(char **args) {
     return 1;
 }
 
-inline void initPrint() {
-    char path[PATHNAME_MAX];
-
-    if (NULL == getcwd(path, sizeof(path))) {
-        fprintf(stderr, "getcwd error: %s", strerror(errno));
-        exit(1);
-    }
-
+inline char* get_user() {
     struct passwd *pwd = getpwuid(getuid());
 
     if (pwd == NULL) {
         fprintf(stderr, "getpwuid error: %s", strerror(errno));
     }
+    return pwd->pw_name;
+}
 
-    printf("[%s:%s]> $ ", pwd->pw_name, path);
+inline char* get_path() {
+    char *path = malloc(PATHNAME_MAX * sizeof(char));
+
+    if (NULL == getcwd(path, PATHNAME_MAX)) {
+        fprintf(stderr, "getcwd error: %s", strerror(errno));
+        exit(1);
+    }
+    return path;
+}
+
+inline void initPrint() {
+    printf("[%s:%s]> $ ", get_user(), get_path());
 }
 
 void GC(struct tokens *args) {
     for (int i = 0; i < args->size; ++i) {
         free(args->tokens[i]);
     }
+    free(args->tokens);
     free(args);
 }
 
@@ -198,8 +231,7 @@ void lsh_loop() {
 
         status = lsh_execute(args->tokens);
 
-        //free(lines);
-        GC(args);
+        free(args);
     } while(status);
 }
 

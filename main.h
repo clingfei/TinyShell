@@ -32,6 +32,10 @@ struct tokens {
     int size;
 };
 
+char* get_path();
+
+char* get_user();
+
 void initPrint();
 
 int lsh_builtin_num();
