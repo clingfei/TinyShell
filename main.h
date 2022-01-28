@@ -18,6 +18,11 @@ char *builtin_str[] = {
         "exit"
 };
 
+struct tokens {
+    char ** tokens;
+    int size;
+};
+
 int lsh_builtin_num();
 
 int lsh_exit(char **args);
@@ -30,7 +35,7 @@ int lsh_help(char **args);
 
 char* lsh_read_line();
 
-char** lsh_split_line(char *lines);
+struct tokens * lsh_split_line(char *lines);
 
 int lsh_execute(char **args);
 

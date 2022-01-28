@@ -53,8 +53,8 @@ char* lsh_read_line() {
     return line;
 }
 
-char** lsh_split_line(char *lines) {
-    int bufsize = LSH_TOK_BUFSIZE, position = 0;
+struct tokens *lsh_split_line(char *lines) {
+    int bufsize = LSH_TOK_BUFSIZE;
     char **tokens = malloc(bufsize * sizeof(char *));
     char *token = malloc(LSH_RL_BUFSIZE * sizeof(char));
     int tokensize = LSH_RL_BUFSIZE;
@@ -63,43 +63,57 @@ char** lsh_split_line(char *lines) {
         fprintf(stderr, "allocation error\n");
         exit(EXIT_FAILURE);
     }
+
     int pos = 0, cur = 0;
-    while (lines[position] != '\n') {
-        if (lines[position] == ' ') {
+
+    while (*lines != '\n') {
+        if (*lines == ' ') {
             if (cur > 0) {
-                strncpy(tokens[pos], token, cur);
+                *(tokens + pos) = malloc(cur * sizeof(char));
+                strncpy(*(tokens + pos), token, cur);
                 pos++;
                 cur = 0;
             }
-            position++;
+            lines++;
+            printf("%s", token);
         }
-        else if (lines[position] == '"') {
-            while (lines[position] != '\n' && lines[position] != '"') {
-                token[cur++] = lines[position++];
+        else if (*lines == '"') {
+            while (*lines != '\n' && *lines != '"') {
+                *(token + cur) = *lines++;
+                cur++;
                 if (cur >= tokensize) {
                     tokensize += LSH_RL_BUFSIZE;
                     token = realloc(token, tokensize);
                 }
             }
-            if (lines[position] == '\n') {
+            if (*lines == '\n') {
                 fprintf(stderr, "parse error.Please check your input\n");
                 return NULL;
             }
-            if (lines[position] == '"') {
-                strncpy(tokens[pos], token, cur);
+            if (*lines == '"') {
+                *(tokens + pos) = malloc(cur * sizeof(char));
+                strncpy(*(tokens + pos), token, cur);
                 pos++;
                 cur = 0;
             }
         }
         else {
-            token[cur++] = lines[position++];
+            *(token + cur) = *lines++;
+            cur++;
             if (cur >= tokensize) {
                 tokensize += LSH_RL_BUFSIZE;
                 token = realloc(token, tokensize);
             }
         }
     }
-    return tokens;
+    *(tokens + pos) = malloc(sizeof (char) * cur);
+    strncpy(*(tokens + pos), token, cur);
+
+    struct tokens res;
+    res.tokens = tokens;
+    res.size = pos;
+
+    return &res;
 }
 
 int lsh_execute(char **args) {
@@ -171,17 +185,23 @@ int lsh_launch(char **args) {
 
 void lsh_loop() {
     char *lines;
-    char **args;
+    struct tokens *args;
     int status;
 
     do {
         printf("> $");
         lines = lsh_read_line();
         if (lines == NULL) continue;
-        printf("%s\n", lines);
+        printf("read lines: %s\n", lines);
+
         args = lsh_split_line(lines);
-        if (args == NULL) continue;
-        status = lsh_execute(args);
+        printf("%d", args->size);
+        if (args->tokens == NULL || args->size == 0) continue;
+        for (int i = 0; i < args->size; ++i) {
+            printf("%s\n", args->tokens[i]);
+        }
+
+        status = lsh_execute(args->tokens);
 
         free(lines);
         free(args);
