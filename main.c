@@ -49,8 +49,9 @@ struct tokens *lsh_split_line(char *lines) {
             }
             lines++;
         }
-        else if (*lines == '"') {
-            while (*lines != '\n' && *lines != '"') {
+        else if (*lines == '\"') {
+            lines++;
+            while (*lines != '\n' && *lines != '\"') {
                 *(token + cur) = *lines++;
                 cur++;
                 if (cur >= tokensize) {
@@ -62,11 +63,12 @@ struct tokens *lsh_split_line(char *lines) {
                 fprintf(stderr, "parse error.Please check your input\n");
                 return NULL;
             }
-            if (*lines == '"') {
+            if (*lines == '\"') {
                 *(tokens + pos) = malloc(cur * sizeof(char));
                 strncpy(*(tokens + pos), token, cur);
                 pos++;
                 cur = 0;
+                lines++;
             }
         }
         else {
@@ -78,8 +80,10 @@ struct tokens *lsh_split_line(char *lines) {
             }
         }
     }
-    *(tokens + pos) = malloc(sizeof (char) * cur);
-    strncpy(*(tokens + pos), token, cur);
+    if (cur > 0) {
+        *(tokens + pos) = malloc(sizeof(char) * cur);
+        strncpy(*(tokens + pos), token, cur);
+    }
 
     free(token);
 
