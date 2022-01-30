@@ -26,11 +26,14 @@ char* lsh_read_line() {
     return line;
 }
 
-struct tokens *lsh_split_line(char *lines) {
+struct commands *lsh_split_line(char *lines) {
     int bufsize = LSH_TOK_BUFSIZE;
     char **tokens = malloc(bufsize * sizeof(char *));
     char *token = malloc(LSH_RL_BUFSIZE * sizeof(char));
     int tokensize = LSH_RL_BUFSIZE;
+    struct commands *cmd = malloc(sizeof(struct commands));
+    cmd->tokens = malloc(sizeof(struct tokens));
+    cmd->size = 0;
 
     if (tokens == NULL) {
         fprintf(stderr, "allocation error\n");
@@ -71,6 +74,22 @@ struct tokens *lsh_split_line(char *lines) {
                 lines++;
             }
         }
+        else if (*lines == '|') {
+            struct tokens *tmp = malloc(sizeof(struct tokens));
+            tmp->tokens = tokens;
+            tmp->size = pos + 1;
+
+            //cmd->tokens = malloc(sizeof(struct tokens *));
+            cmd->tokens[cmd->size++] = tmp;
+            //*(cmd->tokens + cmd->size) = tmp;
+            //cmd->size++;
+            cmd = realloc(cmd, sizeof(struct commands));
+
+            pos = 0;
+            cur = 0;
+            tokens = malloc(bufsize * sizeof(char *));
+            lines++;
+        }
         else {
             *(token + cur) = *lines++;
             cur++;
@@ -87,24 +106,43 @@ struct tokens *lsh_split_line(char *lines) {
 
     free(token);
 
-    struct tokens* res;
-    res->tokens = tokens;
-    res->size = pos + 1;
-    return res;
+    struct tokens tmp;
+    tmp.tokens = tokens;
+    tmp.size = pos + 1;
+
+    //cmd->tokens = malloc(sizeof (struct tokens *));
+    cmd->tokens[cmd->size] = &tmp;
+    //*(cmd->tokens + cmd->size) = &tmp;
+    cmd->size++;
+    //printf("%s\n", cmd->tokens[cmd->size - 1]->tokens[0]);
+    return cmd;
+}
+
+/*
+ * if args is builtin, return index
+ * else return -1
+ */
+int check_builtin(char **args) {
+    int i = 0;
+
+    for (i = 0; i < lsh_builtin_num(); ++i) {
+        if (strcmp(args[0], builtin_str[i]) == 0) {
+            return i;
+        }
+    }
+    return -1;
 }
 
 int lsh_execute(char **args) {
-    int i = 0;
 
     if (args[0] == NULL) {
         return 1;
     }
 
-    for (i = 0; i < lsh_builtin_num(); ++i) {
-        if (strcmp(args[0], builtin_str[i]) == 0) {
-            //printf("args: %s, target: %s\n", args[0], builtin_str[i]);
-            return (*builtin_func[i])(args);
-        }
+    int i = check_builtin(args);
+
+    if (i != -1) {
+        return (*builtin_func[i])(args);
     }
 
     return lsh_launch(args);
@@ -166,8 +204,10 @@ int lsh_launch(char **args) {
 
     pid = fork();
     if (pid == 0) {
+        printf("%s\n", args[0]);
         if (execvp(args[0], args) == -1) {
-            perror("execvp error\n");
+            fprintf(stderr, "%s\n", strerror(errno));
+            //perror("execvp error\n");
             exit(EXIT_FAILURE);
         }
     }
@@ -221,7 +261,7 @@ void GC(struct tokens *args) {
 
 void lsh_loop() {
     char *lines;
-    struct tokens *args;
+    struct commands *args;
     int status;
 
     do {
@@ -232,15 +272,55 @@ void lsh_loop() {
 
         args = lsh_split_line(lines);
 
-        if (args->tokens == NULL || args->size == 0) continue;
+        if (args->size == 1) {              //no pipe
+            if (args->tokens[args->size-1]->tokens == NULL || args->tokens[args->size - 1]->size == 0) continue;
+
+            args->tokens[args->size - 1]->fds[STDIN_FILENO] = STDIN_FILENO;
+            args->tokens[args->size - 1]->fds[STDOUT_FILENO] = STDOUT_FILENO;
+            status = lsh_execute(args->tokens[args->size - 1]->tokens);
+        }
+        else {                              // at least one pipe
+            int i;
+            for (i = 0; i < args->size; ++i) {
+                if (check_builtin(args->tokens[i]->tokens) != -1) {
+                    fprintf(stderr, "there is no builtin in pipe.\n");
+                }
+            }
+
+            int pipe_cnt = args->size - 1;
+            int (*pipes)[2] = calloc(pipe_cnt * sizeof(int[2]), 1);
+
+            if (pipes == NULL) {
+                fprintf(stderr, "pipe malloc error.\n");
+            }
+
+            args->tokens[0]->fds[STDIN_FILENO] = STDIN_FILENO;
+            for (i = 1; i < args->size; ++i) {
+                pipe(pipes[i-1]);
+                args->tokens[i-1]->fds[STDOUT_FILENO] = pipes[i-1][1];
+                args->tokens[i]->fds[STDIN_FILENO] = pipes[i-1][0];
+            }
+            args->tokens[pipe_cnt]->fds[STDOUT_FILENO] = STDOUT_FILENO;
+
+            for (i = 0; i < args->size; ++i) {
+                if (args->tokens[i]->fds[0] != -1 && args->tokens[i]->fds[0] != STDIN_FILENO) {
+                    dup2(args->tokens[i]->fds[0], STDIN_FILENO);
+                }
+                if (args->tokens[i]->fds[1] != -1 && args->tokens[i]->fds[1] != STDOUT_FILENO) {
+                    dup2(args->tokens[i]->fds[1], STDOUT_FILENO);
+                }
+
+                lsh_execute(args->tokens[i]->tokens);
+            }
+
+            free(pipes);
+        }
 
         /*
         for (int i = 0; i < args->size; ++i) {
             printf("%s\n", args->tokens[i]);
         }
          */
-
-        status = lsh_execute(args->tokens);
 
         free(args);
     } while(status);

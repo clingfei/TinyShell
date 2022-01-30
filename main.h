@@ -30,7 +30,15 @@ char *builtin_str[] = {
 struct tokens {
     char ** tokens;
     int size;
+    int fds[2];
 };
+
+struct commands {
+    struct tokens **tokens;
+    int size;
+};
+
+int check_builtin(char **args);
 
 char* get_path();
 
@@ -50,7 +58,7 @@ int lsh_help(char **args);
 
 char* lsh_read_line();
 
-struct tokens * lsh_split_line(char *lines);
+struct commands * lsh_split_line(char *lines);
 
 int lsh_execute(char **args);
 
